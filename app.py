@@ -11,7 +11,7 @@ from flask import Flask, jsonify
 #################################################
 # Database Setup
 #################################################
-engine = create_engine("sqlite:///hawaii.sqlite")
+engine = create_engine("sqlite:///hawaii.sqlite", connect_args={'check_same_thread': False})
 
 # reflect an existing database into a new model
 Base = automap_base()
@@ -48,7 +48,7 @@ def welcome():
         f"/api/v1.0/precipitation<br/>Returns a JSON list of percipitation data for the dates between 8/23/16 and 8/23/17<br/><br/>"
         f"/api/v1.0/stations<br/>Returns a JSON list of the weather stations<br/><br/>"
         f"/api/v1.0/tobs<br/>Returns a JSON list of the Temperature Observations (tobs) for each station for the dates between 8/23/16 and 8/23/17<br/><br/>"
-        f"/api/v1.0/date<br/>Returns a JSON list of the minimum temperature, the average temperature, and the max temperature for the dates between the given start date and 8/23/17<br/><br/>."
+       
         f"/api/v1.0/start_date/end_date<br/>Returns a JSON list of the minimum temperature, the average temperature, and the max temperature for the dates between the given start date and end date<br/><br/>."
     )
 
@@ -75,17 +75,32 @@ def stations():
 # Return a JSON list of Temperature Observations (tobs) for the previous year
 @app.route("/api/v1.0/tobs")
 def tobs():
-    t_results = session.query(Measurement.date, Measurement.station, Measurement.tobs).filter(Measurement.date >= last_twelve_months).all()
+    t_results = session.query(Measurement.date, Measurement.station, Measurement.tobs).filter(Measurement.date >= year_ago).all()
     return jsonify(t_results)
 
 
-# /api/v1.0/<start>/<end>
-# Return a JSON list of the minimum temperature, the average temperature, and the max temperature for a given start or start-end range.
-# When given the start and the end date, calculate the TMIN, TAVG, and TMAX for dates between the start and end date inclusive.
-@app.route("/api/v1.0/<start>/<end>")
-def startDateEndDate(start,end):
-    multi_day_temp_results = session.query(func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).filter(Measurement.date >= start).filter(Measurement.date <= end).all()
-    return jsonify(multi_day_temp_results)
+
+#Return a JSON list of the minimum temperature, the average temperature, and the max temperature for a given start or start-end range.
+#When given the start only, calculate `TMIN`, `TAVG`, and `TMAX` for all dates greater than and equal to the start date.
+
+@app.route("/api/v1.0/<start_date>/<end_date>")
+#Return a JSON list of the minimum temperature, the average temperature, and the max temperature for a given start or start-end range.
+#When given the start and the end date, calculate the `TMIN`, `TAVG`, and `TMAX` for dates between the start and end date inclusive.
+
+def startandend(start_date, end_date):
+
+    tripstartandend = session.query(Measurement.date,
+                         func.min(Measurement.tobs).label("TMIN"), 
+                         func.avg(Measurement.tobs).label("TAVG"), 
+                         func.max(Measurement.tobs).label("TMAX")).\
+                         filter(Measurement.date >= start_date).\
+                         filter(Measurement.date <= end_date).\
+                         group_by(Measurement.date).\
+                         order_by(Measurement.date).all()
+
+    return (
+        jsonify(tripstartandend)
+    )
 
 if __name__ == "__main__":
     app.run(debug=True)
